@@ -4,15 +4,18 @@
 #include <linux/init.h>
 #include <linux/kernel.h>
 #include <linux/module.h>
+#include <linux/slab.h>
+#include <linux/usb/input.h>
 
 // ============================================================================
 // Sending Control URBs to the mouse
 // ============================================================================
 
 // Calculate the checksum for a standard control transfer packed with lenght=90
-static void calc_checksum(unsigned char* data) {
+static unsigned char calc_checksum(unsigned char* data) {
     unsigned char crc = 0;
-    for (size_t i = 2; i < 88; i++) {
+    unsigned int i;
+    for (i = 2; i < 88; i++) {
         crc ^= data[i];
     }
     return crc;
@@ -47,7 +50,7 @@ static void send_data(struct razer_device* device, unsigned char* data) {
 
     usleep_range(USB_WAIT_MIN, USB_WAIT_MAX);
 
-    uf(len != size) {
+    if (len != size) {
         printk(
             KERN_WARNING "Razer Naga Trinity Driver: Control transfer failed.\n"
         );
@@ -61,7 +64,7 @@ static void send_data(struct razer_device* device, unsigned char* data) {
 // ============================================================================
 
 static void send_mode_switch(struct razer_device* dev) {
-    const unsigned char data[] = {
+    unsigned char data[] = {
         0x00, 0x1F, 0x00, 0x00, 0x00, 0x06, 0x0F, 0x02, 0x00, 0x00, 0x08, 0x00,
         0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
         0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
@@ -82,7 +85,7 @@ static ssize_t razer_attr_change_led_color(
 
     send_mode_switch(device);
 
-    const unsigned char data[] = {
+    unsigned char data[] = {
         0x00, 0x1F, 0x00, 0x00, 0x00, 0x0E, 0x0F, 0x03, 0x00, 0x00, 0x00, 0x00,
         0x02,
         0xFF,  // 1
@@ -136,7 +139,9 @@ static int razer_probe(
     razer_device_init(dev, intf);
 
     // Create the file for the matrix effect
-    CREATE_DEVICE_FILE(&hdev->dev, &dev_attr_matrix_effect_static);
+    if (device_create_file(&hdev->dev, &dev_attr_change_led_color)) {
+        goto exit_free;
+    }
 
     // TODO: I think these two lines do the same thing
     hid_set_drvdata(hdev, dev);
@@ -162,10 +167,9 @@ exit_free:
 
 static void razer_remove(struct hid_device* hdev) {
     struct usb_interface* intf = to_usb_interface(hdev->dev.parent);
-    struct usb_device* usb_dev = interface_to_usbdev(intf);
     struct razer_mouse_device* dev = hid_get_drvdata(hdev);
 
-    device_remove_file(&hdev->dev, &dev_attr_matrix_effect_static);
+    device_remove_file(&hdev->dev, &dev_attr_change_led_color);
 
     hid_hw_stop(hdev);
 
@@ -180,7 +184,7 @@ static const struct hid_device_id razer_devices[] = {
 
 MODULE_DEVICE_TABLE(hid, razer_devices);
 
-static strunct hid_driver razer_naga_trinity_driver = {
+static struct hid_driver razer_naga_trinity_driver = {
     .name = "Razer Naga Trinity Driver",
     .id_table = razer_devices,
     .probe = razer_probe,
@@ -188,3 +192,7 @@ static strunct hid_driver razer_naga_trinity_driver = {
 };
 
 module_hid_driver(razer_naga_trinity_driver);
+
+MODULE_LICENSE("GPL");
+MODULE_AUTHOR("Benjamin Jurewicz");
+MODULE_DESCRIPTION("A HID driver for Razer Naga Trinity mouse");

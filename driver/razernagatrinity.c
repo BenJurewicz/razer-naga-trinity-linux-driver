@@ -75,16 +75,16 @@ static ssize_t send_mode_switch(struct razer_device* dev) {
     }
 
     data[0] = 0x00;
-    data[0] = 0x1F;
-    data[0] = 0x00;
-    data[0] = 0x00;
-    data[0] = 0x00;
-    data[0] = 0x06;
-    data[0] = 0x0F;
-    data[0] = 0x02;
-    data[0] = 0x00;
-    data[0] = 0x00;
-    data[0] = 0x08;
+    data[1] = 0x1F;
+    data[2] = 0x00;
+    data[3] = 0x00;
+    data[4] = 0x00;
+    data[5] = 0x06;
+    data[6] = 0x0F;
+    data[7] = 0x02;
+    data[8] = 0x00;
+    data[9] = 0x00;
+    data[10] = 0x08;
 
     send_data(dev, data);
 

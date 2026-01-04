@@ -16,3 +16,5 @@ razernagatrinity.mod
 razernagatrinity.mod.c
 razernagatrinity.mod.o
 razernagatrinity.o
+
+compile_commands.json

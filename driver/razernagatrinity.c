@@ -64,7 +64,7 @@ static void send_data(struct razer_device* device, unsigned char* data) {
 // ============================================================================
 
 static void send_mode_switch(struct razer_device* dev) {
-    unsigned char data[] = {
+    unsigned char data[90] = {
         0x00, 0x1F, 0x00, 0x00, 0x00, 0x06, 0x0F, 0x02, 0x00, 0x00, 0x08, 0x00,
         0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
         0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
@@ -85,7 +85,7 @@ static ssize_t razer_attr_change_led_color(
 
     send_mode_switch(device);
 
-    unsigned char data[] = {
+    unsigned char data[90] = {
         0x00, 0x1F, 0x00, 0x00, 0x00, 0x0E, 0x0F, 0x03, 0x00, 0x00, 0x00, 0x00,
         0x02,
         0xFF,  // 1
@@ -167,7 +167,7 @@ exit_free:
 
 static void razer_remove(struct hid_device* hdev) {
     struct usb_interface* intf = to_usb_interface(hdev->dev.parent);
-    struct razer_mouse_device* dev = hid_get_drvdata(hdev);
+    struct razer_device* dev = hid_get_drvdata(hdev);
 
     device_remove_file(&hdev->dev, &dev_attr_change_led_color);
 

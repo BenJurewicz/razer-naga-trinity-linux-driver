@@ -32,7 +32,7 @@ static void send_data(struct razer_device* device, unsigned char* data) {
     uint size = 90;
 
     // Set the checksum in the message data
-    data[89] = calc_checksum(data);
+    data[88] = calc_checksum(data);
 
     mutex_lock(&device->lock);
 

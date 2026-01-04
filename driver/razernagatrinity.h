@@ -4,6 +4,8 @@
 #include <linux/hid.h>
 #include <linux/types.h>
 
+#define DRIVER_NAME "RazerNagaMouseDriver"
+
 #define USB_VENDOR_ID_RAZER 0x1532
 #define USB_PRODUCT_ID_RAZER_NAGA_TRINITY 0x0067
 
@@ -13,6 +15,12 @@
 struct razer_device {
     struct usb_device* usb_dev;
     struct mutex lock;
+};
+
+struct razer_rgb {
+    unsigned char r;
+    unsigned char g;
+    unsigned char b;
 };
 
 #endif  // INCLUDE_DRIVER_RAZERNAGATRINITY_H_

@@ -9,6 +9,7 @@
 
 #include "asm-generic/errno-base.h"
 #include "linux/gfp_types.h"
+#include "linux/kern_levels.h"
 #include "linux/types.h"
 
 // ============================================================================
@@ -55,9 +56,7 @@ static void send_data(struct razer_device* device, unsigned char* data) {
     usleep_range(USB_WAIT_MIN, USB_WAIT_MAX);
 
     if (len != size) {
-        printk(
-            KERN_WARNING "Razer Naga Trinity Driver: Control transfer failed.\n"
-        );
+        printk(KERN_WARNING DRIVER_NAME ": Control transfer failed.\n");
     }
 
     mutex_unlock(&device->lock);
@@ -97,6 +96,14 @@ static ssize_t razer_attr_change_led_color(
     struct device* dev, struct device_attribute* attr, const char* buf,
     size_t count
 ) {
+    if (count != 3) {
+        printk(
+            KERN_WARNING DRIVER_NAME
+            ": Changing the color accepts RGB value as 3 bytes"
+        );
+    }
+    struct razer_rgb* rgb = (struct razer_rgb*)buf;
+
     struct razer_device* device = dev_get_drvdata(dev);
 
     ssize_t retval = send_mode_switch(device);
@@ -123,15 +130,24 @@ static ssize_t razer_attr_change_led_color(
     data[10] = 0x00;
     data[11] = 0x00;
     data[12] = 0x02;
-    data[13] = 0xFF;  // 1
-    data[14] = 0x00;  // 1
-    data[15] = 0xFF;  // 1
-    data[16] = 0xFF;  // 2
-    data[17] = 0x00;  // 2
-    data[18] = 0xFF;  // 2
-    data[19] = 0xFF;  // 3
-    data[20] = 0x00;  // 3
-    data[21] = 0xFF;  // 3
+    // data[13] = 0xFF;  // 1
+    // data[14] = 0x00;  // 1
+    // data[15] = 0xFF;  // 1
+    // data[16] = 0xFF;  // 2
+    // data[17] = 0x00;  // 2
+    // data[18] = 0xFF;  // 2
+    // data[19] = 0xFF;  // 3
+    // data[20] = 0x00;  // 3
+    // data[21] = 0xFF;  // 3
+    data[13] = rgb->r;  // 1
+    data[14] = rgb->g;  // 1
+    data[15] = rgb->b;  // 1
+    data[16] = rgb->r;  // 2
+    data[17] = rgb->g;  // 2
+    data[18] = rgb->b;  // 2
+    data[19] = rgb->r;  // 3
+    data[20] = rgb->g;  // 3
+    data[21] = rgb->b;  // 3
 
     send_data(device, data);
 
@@ -215,7 +231,7 @@ static const struct hid_device_id razer_devices[] = {
 MODULE_DEVICE_TABLE(hid, razer_devices);
 
 static struct hid_driver razer_naga_trinity_driver = {
-    .name = "Razer Naga Trinity Driver",
+    .name = DRIVER_NAME,
     .id_table = razer_devices,
     .probe = razer_probe,
     .remove = razer_remove,

@@ -1,7 +1,6 @@
 # This file has been AI generated
 
 import customtkinter as ctk
-from tkinter.colorchooser import askcolor
 import glob
 import os
 import sys
@@ -256,6 +255,8 @@ class ColorController(ctk.CTkFrame):
 
 
 class App(ctk.CTk):
+    ZONES = ["scroll", "logo", "side"]
+
     def __init__(self, device_manager: DeviceManager):
         super().__init__()
         self.device_manager = device_manager
@@ -295,32 +296,10 @@ class App(ctk.CTk):
         individual_frame.pack(expand=True, fill="both")
         individual_frame.grid_columnconfigure((0, 1, 2), weight=1)
 
-        zones = ["scroll", "logo", "side"]
-        for i, zone in enumerate(zones):
+        for i, zone in enumerate(self.ZONES):
             zone_frame = ctk.CTkFrame(individual_frame, fg_color=("gray90", "gray13"))
             zone_frame.grid(row=0, column=i, padx=5, pady=5, sticky="nsew")
-
-            label = ctk.CTkLabel(
-                zone_frame, text=zone.capitalize(), font=ctk.CTkFont(weight="bold")
-            )
-            label.pack(pady=(10, 0))
-
-            mode_var = ctk.StringVar(value="Static")
-            mode_selector = ctk.CTkSegmentedButton(
-                zone_frame,
-                values=["Static", "Spectrum"],
-                variable=mode_var,
-                command=lambda mode, z=zone: self.on_mode_change(z, mode),
-            )
-            mode_selector.pack(pady=(5, 0))
-            self.mode_vars[zone] = mode_var
-
-            initial_color = self.device_manager.get_color(zone) or (0, 0, 0)
-            controller = ColorController(
-                zone_frame, zone, initial_color, self.on_color_change
-            )
-            controller.pack(padx=5, pady=5)
-            self.color_controllers[zone] = controller
+            self._populate_zone_frame(zone_frame, zone)
 
         # === All Tab Content ===
         all_frame = ctk.CTkFrame(all_tab, fg_color="transparent")
@@ -329,30 +308,7 @@ class App(ctk.CTk):
 
         zone_frame = ctk.CTkFrame(all_frame, fg_color=("gray90", "gray13"))
         zone_frame.grid(row=0, column=0, padx=5, pady=5)
-
-        label = ctk.CTkLabel(zone_frame, text="All", font=ctk.CTkFont(weight="bold"))
-        label.pack(pady=(10, 0))
-
-        mode_var = ctk.StringVar(value="Static")
-        mode_selector = ctk.CTkSegmentedButton(
-            zone_frame,
-            values=["Static", "Spectrum"],
-            variable=mode_var,
-            command=lambda mode, z="all": self.on_mode_change(z, mode),
-        )
-        mode_selector.pack(pady=(5, 0))
-        self.mode_vars["all"] = mode_var
-
-        initial_color = self.device_manager.get_color("scroll") or (
-            0,
-            0,
-            0,
-        )  # Use scroll as a baseline
-        all_controller = ColorController(
-            zone_frame, "all", initial_color, self.on_color_change
-        )
-        all_controller.pack(padx=5, pady=5)
-        self.color_controllers["all"] = all_controller
+        self._populate_zone_frame(zone_frame, "all")
 
         # --- Auto-sizing ---
         self.update_idletasks()
@@ -361,10 +317,36 @@ class App(ctk.CTk):
         self.geometry(f"{required_width}x{required_height}")
         self.deiconify()
 
+    def _populate_zone_frame(self, parent_frame, zone):
+        """Creates and packs the standard widgets for a lighting zone."""
+        label = ctk.CTkLabel(
+            parent_frame, text=zone.capitalize(), font=ctk.CTkFont(weight="bold")
+        )
+        label.pack(pady=(10, 0))
+
+        mode_var = ctk.StringVar(value="Static")
+        mode_selector = ctk.CTkSegmentedButton(
+            parent_frame,
+            values=["Static", "Spectrum"],
+            variable=mode_var,
+            command=lambda mode, z=zone: self.on_mode_change(z, mode),
+        )
+        mode_selector.pack(pady=(5, 0))
+        self.mode_vars[zone] = mode_var
+
+        # Use scroll color as a baseline for the 'all' controller
+        initial_color_source = "scroll" if zone == "all" else zone
+        initial_color = self.device_manager.get_color(initial_color_source) or (0, 0, 0)
+
+        controller = ColorController(
+            parent_frame, zone, initial_color, self.on_color_change
+        )
+        controller.pack(padx=5, pady=5)
+        self.color_controllers[zone] = controller
+
     def on_closing(self):
         """Stops all animation threads before closing the app."""
-        for thread in self.animation_threads.values():
-            thread.stop()
+        self._stop_all_animations()
         self.destroy()
 
     def _update_animator_ui(self, zone, color):
@@ -377,80 +359,90 @@ class App(ctk.CTk):
             if zone in self.color_controllers:
                 self.color_controllers[zone].color_swatch.configure(fg_color=hex_color)
 
+    # _start_animation and _stop_animation helpers
+    def _start_animation(self, zone):
+        """Stops any existing thread for a zone and starts a new one."""
+        if zone in self.animation_threads:
+            self.animation_threads[zone].stop()
+        
+        animator = SpectrumAnimator(self.device_manager, zone, self._update_animator_ui)
+        self.animation_threads[zone] = animator
+        animator.start()
+
+    def _stop_animation(self, zone):
+        """Stops and removes the animation thread for a given zone."""
+        if zone in self.animation_threads:
+            self.animation_threads[zone].stop()
+            del self.animation_threads[zone]
+
+    def _stop_all_animations(self):
+        """Stops all running animation threads."""
+        for zone in list(self.animation_threads.keys()):
+            self._stop_animation(zone)
+
+    # on_mode_change now dispatches to cleaner helper methods
     def on_mode_change(self, zone: str, mode: str):
+        """Handles mode changes from the UI."""
         if mode == "Spectrum":
-            # Stop conflicting animations
-            if zone == "all":
-                for z in ["scroll", "logo", "side"]:
-                    if z in self.animation_threads:
-                        self.animation_threads[z].stop()
-                        del self.animation_threads[z]
-            else:  # Individual zone
-                if "all" in self.animation_threads:
-                    self.animation_threads["all"].stop()
-                    del self.animation_threads["all"]
-
-            # Stop any existing animation for the same zone before starting a new one
-            if zone in self.animation_threads:
-                self.animation_threads[zone].stop()
-
-            # Start new animation
-            animator = SpectrumAnimator(
-                self.device_manager, zone, self._update_animator_ui
-            )
-            self.animation_threads[zone] = animator
-            animator.start()
-
-            # Update UI
-            if zone == "all":
-                for z in self.color_controllers.keys():
-                    self.mode_vars[z].set("Spectrum")
-                    self.color_controllers[z].set_enabled(False)
-            else:
-                self.color_controllers[zone].set_enabled(False)
-                # Check if all individual zones are now spectrum
-                if all(
-                    z in self.animation_threads for z in ["scroll", "logo", "side"]
-                ):
-                    self.on_mode_change("all", "Spectrum")
-
+            self._set_spectrum_mode(zone)
         elif mode == "Static":
-            # Stop animation
-            if zone == "all":
-                if "all" in self.animation_threads:
-                    self.animation_threads["all"].stop()
-                    del self.animation_threads["all"]
-                # Also stop individual animations
-                for z in ["scroll", "logo", "side"]:
-                    if z in self.animation_threads:
-                        self.animation_threads[z].stop()
-                        del self.animation_threads[z]
-            else:  # Individual zone
-                if zone in self.animation_threads:
-                    self.animation_threads[zone].stop()
-                    del self.animation_threads[zone]
+            self._set_static_mode(zone)
 
-            # Update UI and set color
-            if zone == "all":
-                for z in self.color_controllers.keys():
-                    self.mode_vars[z].set("Static")
-                    self.color_controllers[z].set_enabled(True)
-                # Set color for all based on the 'all' controller
-                r, g, b = self._get_controller_color(self.color_controllers["all"])
-                self.device_manager.set_color("all", r, g, b)
-                for z in ["scroll", "logo", "side"]:
-                    self.color_controllers[z].update_color((r, g, b), source="global")
-            else:
-                self.color_controllers[zone].set_enabled(True)
-                r, g, b = self._get_controller_color(self.color_controllers[zone])
-                self.device_manager.set_color(zone, r, g, b)
-                # If 'all' was in spectrum, its animation is stopped but UI needs update
-                if "all" in self.mode_vars and self.mode_vars["all"].get() == "Spectrum":
-                    self.mode_vars["all"].set("Static")
-                    self.color_controllers["all"].set_enabled(True)
+    def _set_spectrum_mode(self, zone: str):
+        """Activates Spectrum mode for a given zone."""
+        if zone == "all":
+            # Stop individual animations and start the 'all' animation
+            for z in self.ZONES:
+                self._stop_animation(z)
+            self._start_animation("all")
+            # Update all UI elements to reflect the new mode
+            for z in self.color_controllers.keys():
+                self.mode_vars[z].set("Spectrum")
+                self.color_controllers[z].set_enabled(False)
+        else:
+            # Stop the 'all' animation if it's running
+            self._stop_animation("all")
+            self._start_animation(zone)
+            # Update the specific UI element
+            self.mode_vars[zone].set("Spectrum")
+            self.color_controllers[zone].set_enabled(False)
+            
+            # If all individual zones are now spectrum, consolidate to a single 'all' animation
+            if all(z in self.animation_threads for z in self.ZONES):
+                self._set_spectrum_mode("all")
 
+    def _set_static_mode(self, zone: str):
+        """Activates Static mode for a given zone."""
+        # Stop the relevant animation(s)
+        if zone == "all":
+            self._stop_all_animations()
+        else:
+            self._stop_animation(zone)
+            self._stop_animation("all") # Changing an individual zone also stops the 'all' effect
+
+        # Update UI state and apply color
+        if zone == "all":
+            for z in self.color_controllers.keys():
+                self.mode_vars[z].set("Static")
+                self.color_controllers[z].set_enabled(True)
+            
+            r, g, b = self._get_controller_color(self.color_controllers["all"])
+            self.device_manager.set_color("all", r, g, b)
+            # Ensure individual controllers show the same color
+            for z in self.ZONES:
+                self.color_controllers[z].update_color((r, g, b), source="global")
+        else:
+            self.mode_vars[zone].set("Static")
+            self.color_controllers[zone].set_enabled(True)
+            r, g, b = self._get_controller_color(self.color_controllers[zone])
+            self.device_manager.set_color(zone, r, g, b)
+            # Update the 'all' controller's UI if it was in spectrum mode
+            if "all" in self.mode_vars and self.mode_vars["all"].get() == "Spectrum":
+                self.mode_vars["all"].set("Static")
+                self.color_controllers["all"].set_enabled(True)
 
     def _get_controller_color(self, controller: ColorController) -> tuple[int, int, int]:
+        """Safely gets the RGB color from a ColorController."""
         try:
             r = int(controller.r_var.get())
             g = int(controller.g_var.get())
@@ -461,24 +453,12 @@ class App(ctk.CTk):
 
     def on_color_change(self, zone: str, r: int, g: int, b: int):
         """Handles color changes from the ColorController, implying Static mode."""
-        # Stop any active animations for the affected zone(s)
-        if zone == "all":
-            for z in list(self.animation_threads.keys()):
-                self.animation_threads[z].stop()
-                del self.animation_threads[z]
-        else:
-            if zone in self.animation_threads:
-                self.animation_threads[zone].stop()
-                del self.animation_threads[zone]
-            if "all" in self.animation_threads:
-                self.animation_threads["all"].stop()
-                del self.animation_threads["all"]
+        self._stop_all_animations()
 
-        # Set the mode UI to Static
+        # Set the mode UI to Static for all affected zones
         if zone == "all":
             for z in self.mode_vars.keys():
                 self.mode_vars[z].set("Static")
-                # Ensure controller is enabled
                 self.color_controllers[z].set_enabled(True)
         else:
             self.mode_vars[zone].set("Static")
@@ -486,14 +466,11 @@ class App(ctk.CTk):
                 self.mode_vars["all"].set("Static")
                 self.color_controllers["all"].set_enabled(True)
 
-
         # Set device color
         if zone == "all":
             self.device_manager.set_color("all", r, g, b)
-            # Update the UI of the individual controllers
-            for z in ["scroll", "logo", "side"]:
-                if z in self.color_controllers:
-                    self.color_controllers[z].update_color((r, g, b), source="global")
+            for z in self.ZONES:
+                self.color_controllers[z].update_color((r, g, b), source="global")
         else:
             self.device_manager.set_color(zone, r, g, b)
 

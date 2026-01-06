@@ -62,10 +62,6 @@ static void send_data(struct razer_device* device, unsigned char* data) {
     mutex_unlock(&device->lock);
 }
 
-// ============================================================================
-// Device Attribute
-// ============================================================================
-
 static ssize_t send_mode_switch(struct razer_device* dev) {
     unsigned char* data;
     data = kzalloc(90, GFP_KERNEL);
@@ -92,29 +88,18 @@ static ssize_t send_mode_switch(struct razer_device* dev) {
     return 0;
 }
 
-static ssize_t razer_attr_change_led_color(
-    struct device* dev, struct device_attribute* attr, const char* buf,
-    size_t count
-) {
-    if (count != 3) {
-        printk(
-            KERN_WARNING DRIVER_NAME
-            ": Changing the color accepts RGB value as 3 bytes"
-        );
-    }
-    struct razer_rgb* rgb = (struct razer_rgb*)buf;
-
-    struct razer_device* device = dev_get_drvdata(dev);
-
+static void update_colors(struct razer_device* device) {
     ssize_t retval = send_mode_switch(device);
     if (retval) {
-        return retval;
+        printk(KERN_ERR DRIVER_NAME ": No memory\n");
+        return;
     }
 
     unsigned char* data;
     data = kzalloc(90, GFP_KERNEL);
     if (!data) {
-        return -ENOMEM;
+        printk(KERN_ERR DRIVER_NAME ": No memory\n");
+        return;
     }
 
     data[0] = 0x00;
@@ -130,28 +115,55 @@ static ssize_t razer_attr_change_led_color(
     data[10] = 0x00;
     data[11] = 0x00;
     data[12] = 0x02;
-    // data[13] = 0xFF;  // 1
-    // data[14] = 0x00;  // 1
-    // data[15] = 0xFF;  // 1
-    // data[16] = 0xFF;  // 2
-    // data[17] = 0x00;  // 2
-    // data[18] = 0xFF;  // 2
-    // data[19] = 0xFF;  // 3
-    // data[20] = 0x00;  // 3
-    // data[21] = 0xFF;  // 3
-    data[13] = rgb->r;  // 1
-    data[14] = rgb->g;  // 1
-    data[15] = rgb->b;  // 1
-    data[16] = rgb->r;  // 2
-    data[17] = rgb->g;  // 2
-    data[18] = rgb->b;  // 2
-    data[19] = rgb->r;  // 3
-    data[20] = rgb->g;  // 3
-    data[21] = rgb->b;  // 3
+    // Scroll
+    data[13] = device->scroll_color.r;
+    data[14] = device->scroll_color.g;
+    data[15] = device->scroll_color.b;
+    // Logo
+    data[16] = device->logo_color.r;
+    data[17] = device->logo_color.g;
+    data[18] = device->logo_color.b;
+    // Side
+    data[19] = device->side_color.r;
+    data[20] = device->side_color.g;
+    data[21] = device->side_color.b;
 
     send_data(device, data);
 
     kfree(data);
+}
+
+// ============================================================================
+// Device Attribute
+// ============================================================================
+
+static ssize_t razer_attr_change_led_color(
+    struct device* dev, struct device_attribute* attr, const char* buf,
+    size_t count
+) {
+    if (count != 3) {
+        printk(
+            KERN_WARNING DRIVER_NAME
+            ": Changing the color accepts RGB value as 3 bytes"
+        );
+    }
+    struct razer_rgb* rgb = (struct razer_rgb*)buf;
+
+    struct razer_device* device = dev_get_drvdata(dev);
+
+    device->scroll_color.r = rgb->r;
+    device->scroll_color.g = rgb->g;
+    device->scroll_color.b = rgb->b;
+
+    device->logo_color.r = rgb->r;
+    device->logo_color.g = rgb->g;
+    device->logo_color.b = rgb->b;
+
+    device->side_color.r = rgb->r;
+    device->side_color.g = rgb->g;
+    device->side_color.b = rgb->b;
+
+    update_colors(device);
 
     return count;
 }
@@ -167,6 +179,18 @@ static void razer_device_init(
 ) {
     mutex_init(&dev->lock);
     dev->usb_dev = interface_to_usbdev(intf);
+
+    dev->scroll_color.r = 0;
+    dev->scroll_color.g = 0;
+    dev->scroll_color.b = 0;
+
+    dev->logo_color.r = 0;
+    dev->logo_color.g = 0;
+    dev->logo_color.b = 0;
+
+    dev->side_color.r = 0;
+    dev->side_color.g = 0;
+    dev->side_color.b = 0;
 }
 
 static int razer_probe(

@@ -12,15 +12,19 @@
 #define USB_WAIT_MIN 500
 #define USB_WAIT_MAX 1000
 
-struct razer_device {
-    struct usb_device* usb_dev;
-    struct mutex lock;
-};
-
 struct razer_rgb {
     unsigned char r;
     unsigned char g;
     unsigned char b;
+};
+
+struct razer_device {
+    struct usb_device* usb_dev;
+    struct mutex lock;
+
+    struct razer_rgb scroll_color;
+    struct razer_rgb logo_color;
+    struct razer_rgb side_color;
 };
 
 #endif  // INCLUDE_DRIVER_RAZERNAGATRINITY_H_

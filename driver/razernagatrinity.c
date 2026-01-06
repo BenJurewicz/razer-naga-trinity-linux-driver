@@ -5,9 +5,6 @@
 #include <linux/module.h>
 #include <linux/usb.h>
 
-#include "asm-generic/errno-base.h"
-#include "linux/kern_levels.h"
-
 // ============================================================================
 // Sending Control URBs to the mouse
 // ============================================================================

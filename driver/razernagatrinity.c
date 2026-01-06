@@ -5,6 +5,9 @@
 #include <linux/module.h>
 #include <linux/usb.h>
 
+#include "asm-generic/errno-base.h"
+#include "linux/kern_levels.h"
+
 // ============================================================================
 // Sending Control URBs to the mouse
 // ============================================================================
@@ -134,11 +137,12 @@ static ssize_t razer_attr_change_all_led_color(
 ) {
     struct razer_rgb color = {0};
     if (sscanf(buf, "%2hhx %2hhx %2hhx", &color.r, &color.g, &color.b) != 3) {
-        printk(
-            KERN_WARNING DRIVER_NAME
+        RZR_PRINT(
+            KERN_WARNING,
             ": Wrong data for changing the color of the leds. The correct "
             "format is \"RR GG BB\". Example: \"ff 00 ff\"."
         );
+        return -EINVAL;
     }
 
     struct razer_device* device = dev_get_drvdata(dev);

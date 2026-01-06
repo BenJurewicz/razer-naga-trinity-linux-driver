@@ -11,6 +11,19 @@
 #define USB_WAIT_MIN 500
 #define USB_WAIT_MAX 1000
 
+// Helper macro for printing to dmesg in the correct format.
+// Valid values for print_type are taken from include/linux/kern_levels.h:
+//	KERN_EMERG		/* system is unusable */
+//	KERN_ALERT		/* action must be taken immediately */
+//	KERN_CRIT		/* critical conditions */
+//	KERN_ERR	    	/* error conditions */
+//	KERN_WARNING		/* warning conditions */
+//	KERN_NOTICE		/* normal but significant condition */
+//	KERN_INFO		/* informational */
+//	KERN_DEBUG		/* debug-level messages */
+#define RZR_PRINT(print_type, fmt, ...) \
+    printk(print_type "%s: " fmt, DRIVER_NAME, ##__VA_ARGS__)
+
 struct razer_rgb {
     unsigned char r;
     unsigned char g;

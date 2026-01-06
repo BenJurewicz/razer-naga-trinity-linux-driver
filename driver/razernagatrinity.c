@@ -7,6 +7,7 @@
 #include <linux/slab.h>
 #include <linux/usb/input.h>
 
+// TODO this is useless I think
 #include "asm-generic/errno-base.h"
 #include "linux/gfp_types.h"
 #include "linux/kern_levels.h"
@@ -137,7 +138,7 @@ static void update_colors(struct razer_device* device) {
 // Device Attribute
 // ============================================================================
 
-static ssize_t razer_attr_change_led_color(
+static ssize_t razer_attr_change_all_led_color(
     struct device* dev, struct device_attribute* attr, const char* buf,
     size_t count
 ) {
@@ -168,7 +169,85 @@ static ssize_t razer_attr_change_led_color(
     return count;
 }
 
-static DEVICE_ATTR(change_led_color, 0220, NULL, razer_attr_change_led_color);
+static ssize_t razer_attr_change_scroll_led_color(
+    struct device* dev, struct device_attribute* attr, const char* buf,
+    size_t count
+) {
+    if (count != 3) {
+        printk(
+            KERN_WARNING DRIVER_NAME
+            ": Changing the color accepts RGB value as 3 bytes"
+        );
+    }
+    struct razer_rgb* rgb = (struct razer_rgb*)buf;
+
+    struct razer_device* device = dev_get_drvdata(dev);
+
+    device->scroll_color.r = rgb->r;
+    device->scroll_color.g = rgb->g;
+    device->scroll_color.b = rgb->b;
+
+    update_colors(device);
+
+    return count;
+}
+
+static ssize_t razer_attr_change_logo_led_color(
+    struct device* dev, struct device_attribute* attr, const char* buf,
+    size_t count
+) {
+    if (count != 3) {
+        printk(
+            KERN_WARNING DRIVER_NAME
+            ": Changing the color accepts RGB value as 3 bytes"
+        );
+    }
+    struct razer_rgb* rgb = (struct razer_rgb*)buf;
+
+    struct razer_device* device = dev_get_drvdata(dev);
+
+    device->logo_color.r = rgb->r;
+    device->logo_color.g = rgb->g;
+    device->logo_color.b = rgb->b;
+
+    update_colors(device);
+
+    return count;
+}
+
+static ssize_t razer_attr_change_side_led_color(
+    struct device* dev, struct device_attribute* attr, const char* buf,
+    size_t count
+) {
+    if (count != 3) {
+        printk(
+            KERN_WARNING DRIVER_NAME
+            ": Changing the color accepts RGB value as 3 bytes"
+        );
+    }
+    struct razer_rgb* rgb = (struct razer_rgb*)buf;
+
+    struct razer_device* device = dev_get_drvdata(dev);
+
+    device->side_color.r = rgb->r;
+    device->side_color.g = rgb->g;
+    device->side_color.b = rgb->b;
+
+    update_colors(device);
+
+    return count;
+}
+
+static DEVICE_ATTR(led_all_color, 0220, NULL, razer_attr_change_all_led_color);
+static DEVICE_ATTR(
+    led_scroll_color, 0220, NULL, razer_attr_change_scroll_led_color
+);
+static DEVICE_ATTR(
+    led_logo_color, 0220, NULL, razer_attr_change_logo_led_color
+);
+static DEVICE_ATTR(
+    led_side_color, 0220, NULL, razer_attr_change_side_led_color
+);
 
 // ============================================================================
 // HID Initialization
@@ -208,8 +287,17 @@ static int razer_probe(
 
     razer_device_init(dev, intf);
 
-    // Create the file for the matrix effect
-    if (device_create_file(&hdev->dev, &dev_attr_change_led_color)) {
+    // Create the files
+    if (device_create_file(&hdev->dev, &dev_attr_led_all_color)) {
+        goto exit_free;
+    }
+    if (device_create_file(&hdev->dev, &dev_attr_led_scroll_color)) {
+        goto exit_free;
+    }
+    if (device_create_file(&hdev->dev, &dev_attr_led_logo_color)) {
+        goto exit_free;
+    }
+    if (device_create_file(&hdev->dev, &dev_attr_led_side_color)) {
         goto exit_free;
     }
 
@@ -239,7 +327,10 @@ static void razer_remove(struct hid_device* hdev) {
     struct usb_interface* intf = to_usb_interface(hdev->dev.parent);
     struct razer_device* dev = hid_get_drvdata(hdev);
 
-    device_remove_file(&hdev->dev, &dev_attr_change_led_color);
+    device_remove_file(&hdev->dev, &dev_attr_led_all_color);
+    device_remove_file(&hdev->dev, &dev_attr_led_scroll_color);
+    device_remove_file(&hdev->dev, &dev_attr_led_logo_color);
+    device_remove_file(&hdev->dev, &dev_attr_led_side_color);
 
     hid_hw_stop(hdev);
 

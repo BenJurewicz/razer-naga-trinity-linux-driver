@@ -1,3 +1,5 @@
+# This file has been moslty AI generated
+
 import usb.core
 import usb.util
 import sys

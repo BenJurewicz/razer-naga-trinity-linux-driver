@@ -150,7 +150,6 @@ static ssize_t razer_attr_change_all_led_color(
     device->scroll_color = color;
     device->logo_color = color;
     device->side_color = color;
-
     update_colors(device);
 
     return count;
@@ -160,20 +159,19 @@ static ssize_t razer_attr_change_scroll_led_color(
     struct device* dev, struct device_attribute* attr, const char* buf,
     size_t count
 ) {
-    if (count != 3) {
-        printk(
-            KERN_WARNING DRIVER_NAME
-            ": Changing the color accepts RGB value as 3 bytes"
+    struct razer_rgb color = {0};
+    if (sscanf(buf, "%2hhx %2hhx %2hhx", &color.r, &color.g, &color.b) != 3) {
+        RZR_PRINT(
+            KERN_WARNING,
+            ": Wrong data for changing the color of the leds. The correct "
+            "format is \"RR GG BB\". Example: \"ff 00 ff\"."
         );
+        return -EINVAL;
     }
-    struct razer_rgb* rgb = (struct razer_rgb*)buf;
 
     struct razer_device* device = dev_get_drvdata(dev);
 
-    device->scroll_color.r = rgb->r;
-    device->scroll_color.g = rgb->g;
-    device->scroll_color.b = rgb->b;
-
+    device->scroll_color = color;
     update_colors(device);
 
     return count;
@@ -191,20 +189,19 @@ static ssize_t razer_attr_change_logo_led_color(
     struct device* dev, struct device_attribute* attr, const char* buf,
     size_t count
 ) {
-    if (count != 3) {
-        printk(
-            KERN_WARNING DRIVER_NAME
-            ": Changing the color accepts RGB value as 3 bytes"
+    struct razer_rgb color = {0};
+    if (sscanf(buf, "%2hhx %2hhx %2hhx", &color.r, &color.g, &color.b) != 3) {
+        RZR_PRINT(
+            KERN_WARNING,
+            ": Wrong data for changing the color of the leds. The correct "
+            "format is \"RR GG BB\". Example: \"ff 00 ff\"."
         );
+        return -EINVAL;
     }
-    struct razer_rgb* rgb = (struct razer_rgb*)buf;
 
     struct razer_device* device = dev_get_drvdata(dev);
 
-    device->logo_color.r = rgb->r;
-    device->logo_color.g = rgb->g;
-    device->logo_color.b = rgb->b;
-
+    device->logo_color = color;
     update_colors(device);
 
     return count;
@@ -222,20 +219,19 @@ static ssize_t razer_attr_change_side_led_color(
     struct device* dev, struct device_attribute* attr, const char* buf,
     size_t count
 ) {
-    if (count != 3) {
-        printk(
-            KERN_WARNING DRIVER_NAME
-            ": Changing the color accepts RGB value as 3 bytes"
+    struct razer_rgb color = {0};
+    if (sscanf(buf, "%2hhx %2hhx %2hhx", &color.r, &color.g, &color.b) != 3) {
+        RZR_PRINT(
+            KERN_WARNING,
+            ": Wrong data for changing the color of the leds. The correct "
+            "format is \"RR GG BB\". Example: \"ff 00 ff\"."
         );
+        return -EINVAL;
     }
-    struct razer_rgb* rgb = (struct razer_rgb*)buf;
 
     struct razer_device* device = dev_get_drvdata(dev);
 
-    device->side_color.r = rgb->r;
-    device->side_color.g = rgb->g;
-    device->side_color.b = rgb->b;
-
+    device->side_color = color;
     update_colors(device);
 
     return count;

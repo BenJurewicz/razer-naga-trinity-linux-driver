@@ -299,9 +299,7 @@ static int razer_probe(
         goto exit_free;
     }
 
-    // TODO: I think these two lines do the same thing
     hid_set_drvdata(hdev, dev);
-    dev_set_drvdata(&hdev->dev, dev);
 
     retval = hid_parse(hdev);
     if (retval) {

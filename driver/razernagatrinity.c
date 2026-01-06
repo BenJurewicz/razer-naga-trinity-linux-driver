@@ -273,30 +273,33 @@ static void razer_device_init(
 static int razer_probe(
     struct hid_device* hdev, const struct hid_device_id* id
 ) {
+    printk(KERN_INFO DRIVER_NAME ": The mouse was connected\n");
     int retval = 0;
     struct usb_interface* intf = to_usb_interface(hdev->dev.parent);
     struct razer_device* dev = NULL;
 
     dev = kzalloc(sizeof(struct razer_device), GFP_KERNEL);
     if (dev == NULL) {
-        dev_err(&intf->dev, "out of memory\n");
+        printk(KERN_ERR DRIVER_NAME ": No memory\n");
         return -ENOMEM;
     }
 
     razer_device_init(dev, intf);
 
-    // Create the files
-    if (device_create_file(&hdev->dev, &dev_attr_led_all_color)) {
-        goto exit_free;
-    }
-    if (device_create_file(&hdev->dev, &dev_attr_led_scroll_color)) {
-        goto exit_free;
-    }
-    if (device_create_file(&hdev->dev, &dev_attr_led_logo_color)) {
-        goto exit_free;
-    }
-    if (device_create_file(&hdev->dev, &dev_attr_led_side_color)) {
-        goto exit_free;
+    if (intf->cur_altsetting->desc.bInterfaceProtocol ==
+        USB_INTERFACE_PROTOCOL_MOUSE) {
+        if (device_create_file(&hdev->dev, &dev_attr_led_all_color)) {
+            goto exit_free;
+        }
+        if (device_create_file(&hdev->dev, &dev_attr_led_scroll_color)) {
+            goto exit_free;
+        }
+        if (device_create_file(&hdev->dev, &dev_attr_led_logo_color)) {
+            goto exit_free;
+        }
+        if (device_create_file(&hdev->dev, &dev_attr_led_side_color)) {
+            goto exit_free;
+        }
     }
 
     hid_set_drvdata(hdev, dev);
@@ -329,15 +332,18 @@ static void razer_remove(struct hid_device* hdev) {
     struct usb_interface* intf = to_usb_interface(hdev->dev.parent);
     struct razer_device* dev = hid_get_drvdata(hdev);
 
-    device_remove_file(&hdev->dev, &dev_attr_led_all_color);
-    device_remove_file(&hdev->dev, &dev_attr_led_scroll_color);
-    device_remove_file(&hdev->dev, &dev_attr_led_logo_color);
-    device_remove_file(&hdev->dev, &dev_attr_led_side_color);
+    if (intf->cur_altsetting->desc.bInterfaceProtocol ==
+        USB_INTERFACE_PROTOCOL_MOUSE) {
+        device_remove_file(&hdev->dev, &dev_attr_led_all_color);
+        device_remove_file(&hdev->dev, &dev_attr_led_scroll_color);
+        device_remove_file(&hdev->dev, &dev_attr_led_logo_color);
+        device_remove_file(&hdev->dev, &dev_attr_led_side_color);
+    }
 
     hid_hw_stop(hdev);
 
     kfree(dev);
-    dev_info(&intf->dev, "Razer Device disconnected\n");
+    printk(KERN_INFO DRIVER_NAME ": The mouse was disconnected\n");
 }
 
 static const struct hid_device_id razer_devices[] = {

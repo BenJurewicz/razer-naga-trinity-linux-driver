@@ -256,8 +256,15 @@ class App(ctk.CTk):
             self.controllers[zone] = controller
 
         # === All Tab Content ===
-        all_controller_frame = ctk.CTkFrame(all_tab, fg_color="transparent")
-        all_controller_frame.pack(expand=True, fill="both")
+        all_frame = ctk.CTkFrame(all_tab, fg_color="transparent")
+        all_frame.pack(expand=True, fill="both")
+        all_frame.grid_columnconfigure(0, weight=1)
+
+        zone_frame = ctk.CTkFrame(all_frame, fg_color=("gray90", "gray13"))
+        zone_frame.grid(row=0, column=0, padx=5, pady=5)
+
+        label = ctk.CTkLabel(zone_frame, text="All", font=ctk.CTkFont(weight="bold"))
+        label.pack(pady=(10, 0))
 
         initial_color = self.device_manager.get_color("scroll") or (
             0,
@@ -265,15 +272,15 @@ class App(ctk.CTk):
             0,
         )  # Use scroll as a baseline
         all_controller = ColorController(
-            all_controller_frame, "all", initial_color, self.on_color_change
+            zone_frame, "all", initial_color, self.on_color_change
         )
-        all_controller.pack(padx=10, pady=10)
+        all_controller.pack(padx=5, pady=5)
         self.controllers["all"] = all_controller
 
         # --- Auto-sizing ---
         self.update_idletasks()
         required_width = self.tabview.winfo_reqwidth() + 20
-        required_height = self.tabview.winfo_reqheight() + 20
+        required_height = self.tabview.winfo_reqheight() + 30
         self.geometry(f"{required_width}x{required_height}")
         self.deiconify()
 

@@ -1,0 +1,14 @@
+If:
+  PathMatch: /usr/src/kernels/.*
+CompileFlags:
+  Add: [
+    "-D__KERNEL__",
+    "-I/usr/src/kernels/6.17.12-300.fc43.x86_64/include",
+    "-I/usr/src/kernels/6.17.12-300.fc43.x86_64/arch/arm64/include",
+    "-I/usr/src/kernels/6.17.12-300.fc43.x86_64/include/generated",
+    "-I/usr/src/kernels/6.17.12-300.fc43.x86_64/arch/arm64/include/generated",
+    "-I/usr/src/kernels/6.17.12-300.fc43.x86_64/include/uapi",
+    "-I/usr/src/kernels/6.17.12-300.fc43.x86_64/arch/arm64/include/uapi",
+    "-Wno-unknown-attributes",
+    "-fno-ms-extensions",
+  ]

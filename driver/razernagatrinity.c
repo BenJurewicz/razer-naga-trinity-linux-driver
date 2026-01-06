@@ -1,17 +1,9 @@
 #include "razernagatrinity.h"
 
 #include <linux/hid.h>
-#include <linux/init.h>
 #include <linux/kernel.h>
 #include <linux/module.h>
-#include <linux/slab.h>
-#include <linux/usb/input.h>
-
-// TODO this is useless I think
-#include "asm-generic/errno-base.h"
-#include "linux/gfp_types.h"
-#include "linux/kern_levels.h"
-#include "linux/types.h"
+#include <linux/usb.h>
 
 // ============================================================================
 // Sending Control URBs to the mouse

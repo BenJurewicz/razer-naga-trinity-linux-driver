@@ -2,7 +2,6 @@
 #define INCLUDE_DRIVER_RAZERNAGATRINITY_H_
 
 #include <linux/hid.h>
-#include <linux/types.h>
 
 #define DRIVER_NAME "RazerNagaMouseDriver"
 

@@ -187,7 +187,7 @@ static ssize_t razer_attr_show_scroll_led_color(
 ) {
     struct razer_device* device = dev_get_drvdata(dev);
     struct razer_rgb* rgb = &device->scroll_color;
-    return sysfs_emit(buf, "%02x%02x%02x\n", rgb->r, rgb->g, rgb->b);
+    return sysfs_emit(buf, "%02x %02x %02x\n", rgb->r, rgb->g, rgb->b);
 }
 
 static ssize_t razer_attr_change_logo_led_color(
@@ -218,7 +218,7 @@ static ssize_t razer_attr_show_logo_led_color(
 ) {
     struct razer_device* device = dev_get_drvdata(dev);
     struct razer_rgb* rgb = &device->logo_color;
-    return sysfs_emit(buf, "%02x%02x%02x\n", rgb->r, rgb->g, rgb->b);
+    return sysfs_emit(buf, "%02x %02x %02x\n", rgb->r, rgb->g, rgb->b);
 }
 
 static ssize_t razer_attr_change_side_led_color(
@@ -249,7 +249,7 @@ static ssize_t razer_attr_show_side_led_color(
 ) {
     struct razer_device* device = dev_get_drvdata(dev);
     struct razer_rgb* rgb = &device->side_color;
-    return sysfs_emit(buf, "%02x%02x%02x\n", rgb->r, rgb->g, rgb->b);
+    return sysfs_emit(buf, "%02x %02x %02x\n", rgb->r, rgb->g, rgb->b);
 }
 
 static DEVICE_ATTR(led_all_color, 0220, NULL, razer_attr_change_all_led_color);

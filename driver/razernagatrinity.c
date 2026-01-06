@@ -63,7 +63,11 @@ static void send_data(struct razer_device* device, unsigned char* data) {
     mutex_unlock(&device->lock);
 }
 
-static ssize_t send_mode_switch(struct razer_device* dev) {
+static ssize_t send_init_packet(struct razer_device* dev) {
+    // In the original software this packet gets sent once, when the device is
+    // connected, and the Razer Synapse software is turned on.
+    // Without it the color changing commands don't work.
+
     unsigned char* data;
     data = kzalloc(90, GFP_KERNEL);
     if (!data) {
@@ -90,12 +94,6 @@ static ssize_t send_mode_switch(struct razer_device* dev) {
 }
 
 static void update_colors(struct razer_device* device) {
-    ssize_t retval = send_mode_switch(device);
-    if (retval) {
-        printk(KERN_ERR DRIVER_NAME ": No memory\n");
-        return;
-    }
-
     unsigned char* data;
     data = kzalloc(90, GFP_KERNEL);
     if (!data) {
@@ -313,6 +311,12 @@ static int razer_probe(
     retval = hid_hw_start(hdev, HID_CONNECT_DEFAULT);
     if (retval) {
         hid_err(hdev, "hw start failed\n");
+        goto exit_free;
+    }
+
+    retval = send_init_packet(dev);
+    if (retval) {
+        printk(KERN_ERR DRIVER_NAME ": No memory\n");
         goto exit_free;
     }
 

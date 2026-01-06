@@ -133,7 +133,7 @@ static void update_colors(struct razer_device* device) {
 }
 
 // ============================================================================
-// Device Attribute
+// Device Attribute Files
 // ============================================================================
 
 static ssize_t razer_attr_change_all_led_color(

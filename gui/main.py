@@ -5,6 +5,9 @@ from tkinter.colorchooser import askcolor
 import glob
 import os
 import sys
+import threading
+import time
+import colorsys
 
 # Set the appearance mode and default color theme
 ctk.set_appearance_mode("dark")
@@ -72,6 +75,40 @@ class DeviceManager:
 from CTkColorPicker import CTkColorPicker
 
 
+class SpectrumAnimator(threading.Thread):
+    def __init__(self, device_manager, zone, on_color_update_callback=None):
+        super().__init__(daemon=True)
+        self.device_manager = device_manager
+        self.zone = zone
+        self.on_color_update_callback = on_color_update_callback
+        self._stop_event = threading.Event()
+        self.hue = 0.0
+
+    def run(self):
+        """Continuously cycles through hues and updates the device color."""
+        while not self._stop_event.is_set():
+            # Convert HSV to RGB
+            r, g, b = [int(c * 255) for c in colorsys.hsv_to_rgb(self.hue, 1.0, 1.0)]
+
+            # Set the device color
+            self.device_manager.set_color(self.zone, r, g, b)
+
+            # Update the UI if a callback is provided
+            if self.on_color_update_callback:
+                self.on_color_update_callback(self.zone, (r, g, b))
+
+            # Increment hue
+            self.hue += 0.005  # Adjust for speed
+            if self.hue >= 1.0:
+                self.hue = 0.0
+
+            time.sleep(0.05)  # Adjust for speed and smoothness
+
+    def stop(self):
+        """Stops the animation thread."""
+        self._stop_event.set()
+
+
 class ColorController(ctk.CTkFrame):
     """A frame containing all controls for changing a color."""
 
@@ -104,34 +141,50 @@ class ColorController(ctk.CTkFrame):
         self.pick_button.pack(pady=5, padx=20)
 
         # RGB and HEX entry frames
-        entry_frame = ctk.CTkFrame(self)
-        entry_frame.pack(pady=5, padx=20, fill="x")
-        entry_frame.grid_columnconfigure((0, 1), weight=1)
+        self.entry_frame = ctk.CTkFrame(self)
+        self.entry_frame.pack(pady=5, padx=20, fill="x")
+        self.entry_frame.grid_columnconfigure((0, 1), weight=1)
 
-        self._create_rgb_entries(entry_frame)
-        self._create_hex_entry(entry_frame)
+        self._create_rgb_entries(self.entry_frame)
+        self._create_hex_entry(self.entry_frame)
 
         self.update_color(initial_color)
+
+    def set_enabled(self, is_enabled):
+        """Enables or disables the interactive widgets in the controller."""
+        state = "normal" if is_enabled else "disabled"
+
+        # The CTkColorPicker does not support a disabled state, so we leave it
+        # visible. The on_color_change logic handles switching back to static mode.
+        self.r_entry.configure(state=state)
+        self.g_entry.configure(state=state)
+        self.b_entry.configure(state=state)
+        self.hex_entry.configure(state=state)
+
 
     def _create_rgb_entries(self, parent):
         rgb_frame = ctk.CTkFrame(parent, fg_color="transparent")
         rgb_frame.grid(row=0, column=0, padx=10, pady=5, sticky="ew")
 
         ctk.CTkLabel(rgb_frame, text="R").pack(side="left", padx=5)
-        ctk.CTkEntry(rgb_frame, textvariable=self.r_var, width=50).pack(side="left")
+        self.r_entry = ctk.CTkEntry(rgb_frame, textvariable=self.r_var, width=50)
+        self.r_entry.pack(side="left")
 
         ctk.CTkLabel(rgb_frame, text="G").pack(side="left", padx=5)
-        ctk.CTkEntry(rgb_frame, textvariable=self.g_var, width=50).pack(side="left")
+        self.g_entry = ctk.CTkEntry(rgb_frame, textvariable=self.g_var, width=50)
+        self.g_entry.pack(side="left")
 
         ctk.CTkLabel(rgb_frame, text="B").pack(side="left", padx=5)
-        ctk.CTkEntry(rgb_frame, textvariable=self.b_var, width=50).pack(side="left")
+        self.b_entry = ctk.CTkEntry(rgb_frame, textvariable=self.b_var, width=50)
+        self.b_entry.pack(side="left")
 
     def _create_hex_entry(self, parent):
         hex_frame = ctk.CTkFrame(parent, fg_color="transparent")
         hex_frame.grid(row=0, column=1, padx=10, pady=5, sticky="ew")
 
         ctk.CTkLabel(hex_frame, text="Hex").pack(side="left", padx=5)
-        ctk.CTkEntry(hex_frame, textvariable=self.hex_var).pack(
+        self.hex_entry = ctk.CTkEntry(hex_frame, textvariable=self.hex_var)
+        self.hex_entry.pack(
             side="left", expand=True, fill="x"
         )
 
@@ -187,17 +240,18 @@ class ColorController(ctk.CTkFrame):
 
         self.color_swatch.configure(fg_color=self._rgb_to_hex(color))
 
-        if source != "rgb":
-            self.r_var.set(str(r))
-            self.g_var.set(str(g))
-            self.b_var.set(str(b))
+        if source not in ["anim", "global_anim"]:
+            if source != "rgb":
+                self.r_var.set(str(r))
+                self.g_var.set(str(g))
+                self.b_var.set(str(b))
 
-        if source != "hex":
-            self.hex_var.set(self._rgb_to_hex(color))
+            if source != "hex":
+                self.hex_var.set(self._rgb_to_hex(color))
 
         self._is_updating = False
 
-        if source != "init":
+        if source not in ["init", "anim", "global_anim"]:
             self.on_color_change_callback(self.zone, r, g, b)
 
 
@@ -205,10 +259,13 @@ class App(ctk.CTk):
     def __init__(self, device_manager: DeviceManager):
         super().__init__()
         self.device_manager = device_manager
-        self.controllers = {}
+        self.color_controllers = {}
+        self.mode_vars = {}
+        self.animation_threads = {}
 
         self.title("Razer Naga Trinity Control")
         self.resizable(True, True)
+        self.protocol("WM_DELETE_WINDOW", self.on_closing)
         self.withdraw()  # Hide window initially
 
         if not self.device_manager.writable:
@@ -248,12 +305,22 @@ class App(ctk.CTk):
             )
             label.pack(pady=(10, 0))
 
+            mode_var = ctk.StringVar(value="Static")
+            mode_selector = ctk.CTkSegmentedButton(
+                zone_frame,
+                values=["Static", "Spectrum"],
+                variable=mode_var,
+                command=lambda mode, z=zone: self.on_mode_change(z, mode),
+            )
+            mode_selector.pack(pady=(5, 0))
+            self.mode_vars[zone] = mode_var
+
             initial_color = self.device_manager.get_color(zone) or (0, 0, 0)
             controller = ColorController(
                 zone_frame, zone, initial_color, self.on_color_change
             )
             controller.pack(padx=5, pady=5)
-            self.controllers[zone] = controller
+            self.color_controllers[zone] = controller
 
         # === All Tab Content ===
         all_frame = ctk.CTkFrame(all_tab, fg_color="transparent")
@@ -266,6 +333,16 @@ class App(ctk.CTk):
         label = ctk.CTkLabel(zone_frame, text="All", font=ctk.CTkFont(weight="bold"))
         label.pack(pady=(10, 0))
 
+        mode_var = ctk.StringVar(value="Static")
+        mode_selector = ctk.CTkSegmentedButton(
+            zone_frame,
+            values=["Static", "Spectrum"],
+            variable=mode_var,
+            command=lambda mode, z="all": self.on_mode_change(z, mode),
+        )
+        mode_selector.pack(pady=(5, 0))
+        self.mode_vars["all"] = mode_var
+
         initial_color = self.device_manager.get_color("scroll") or (
             0,
             0,
@@ -275,7 +352,7 @@ class App(ctk.CTk):
             zone_frame, "all", initial_color, self.on_color_change
         )
         all_controller.pack(padx=5, pady=5)
-        self.controllers["all"] = all_controller
+        self.color_controllers["all"] = all_controller
 
         # --- Auto-sizing ---
         self.update_idletasks()
@@ -284,13 +361,139 @@ class App(ctk.CTk):
         self.geometry(f"{required_width}x{required_height}")
         self.deiconify()
 
+    def on_closing(self):
+        """Stops all animation threads before closing the app."""
+        for thread in self.animation_threads.values():
+            thread.stop()
+        self.destroy()
+
+    def _update_animator_ui(self, zone, color):
+        """Callback for the animator to update the UI color swatch."""
+        hex_color = self.color_controllers["all"]._rgb_to_hex(color)
+        if zone == "all":
+            for controller in self.color_controllers.values():
+                controller.color_swatch.configure(fg_color=hex_color)
+        else:
+            if zone in self.color_controllers:
+                self.color_controllers[zone].color_swatch.configure(fg_color=hex_color)
+
+    def on_mode_change(self, zone: str, mode: str):
+        if mode == "Spectrum":
+            # Stop conflicting animations
+            if zone == "all":
+                for z in ["scroll", "logo", "side"]:
+                    if z in self.animation_threads:
+                        self.animation_threads[z].stop()
+                        del self.animation_threads[z]
+            else:  # Individual zone
+                if "all" in self.animation_threads:
+                    self.animation_threads["all"].stop()
+                    del self.animation_threads["all"]
+
+            # Stop any existing animation for the same zone before starting a new one
+            if zone in self.animation_threads:
+                self.animation_threads[zone].stop()
+
+            # Start new animation
+            animator = SpectrumAnimator(
+                self.device_manager, zone, self._update_animator_ui
+            )
+            self.animation_threads[zone] = animator
+            animator.start()
+
+            # Update UI
+            if zone == "all":
+                for z in self.color_controllers.keys():
+                    self.mode_vars[z].set("Spectrum")
+                    self.color_controllers[z].set_enabled(False)
+            else:
+                self.color_controllers[zone].set_enabled(False)
+                # Check if all individual zones are now spectrum
+                if all(
+                    z in self.animation_threads for z in ["scroll", "logo", "side"]
+                ):
+                    self.on_mode_change("all", "Spectrum")
+
+        elif mode == "Static":
+            # Stop animation
+            if zone == "all":
+                if "all" in self.animation_threads:
+                    self.animation_threads["all"].stop()
+                    del self.animation_threads["all"]
+                # Also stop individual animations
+                for z in ["scroll", "logo", "side"]:
+                    if z in self.animation_threads:
+                        self.animation_threads[z].stop()
+                        del self.animation_threads[z]
+            else:  # Individual zone
+                if zone in self.animation_threads:
+                    self.animation_threads[zone].stop()
+                    del self.animation_threads[zone]
+
+            # Update UI and set color
+            if zone == "all":
+                for z in self.color_controllers.keys():
+                    self.mode_vars[z].set("Static")
+                    self.color_controllers[z].set_enabled(True)
+                # Set color for all based on the 'all' controller
+                r, g, b = self._get_controller_color(self.color_controllers["all"])
+                self.device_manager.set_color("all", r, g, b)
+                for z in ["scroll", "logo", "side"]:
+                    self.color_controllers[z].update_color((r, g, b), source="global")
+            else:
+                self.color_controllers[zone].set_enabled(True)
+                r, g, b = self._get_controller_color(self.color_controllers[zone])
+                self.device_manager.set_color(zone, r, g, b)
+                # If 'all' was in spectrum, its animation is stopped but UI needs update
+                if "all" in self.mode_vars and self.mode_vars["all"].get() == "Spectrum":
+                    self.mode_vars["all"].set("Static")
+                    self.color_controllers["all"].set_enabled(True)
+
+
+    def _get_controller_color(self, controller: ColorController) -> tuple[int, int, int]:
+        try:
+            r = int(controller.r_var.get())
+            g = int(controller.g_var.get())
+            b = int(controller.b_var.get())
+            return r, g, b
+        except (ValueError, ctk.TclError):
+            return 0, 0, 0
+
     def on_color_change(self, zone: str, r: int, g: int, b: int):
+        """Handles color changes from the ColorController, implying Static mode."""
+        # Stop any active animations for the affected zone(s)
+        if zone == "all":
+            for z in list(self.animation_threads.keys()):
+                self.animation_threads[z].stop()
+                del self.animation_threads[z]
+        else:
+            if zone in self.animation_threads:
+                self.animation_threads[zone].stop()
+                del self.animation_threads[zone]
+            if "all" in self.animation_threads:
+                self.animation_threads["all"].stop()
+                del self.animation_threads["all"]
+
+        # Set the mode UI to Static
+        if zone == "all":
+            for z in self.mode_vars.keys():
+                self.mode_vars[z].set("Static")
+                # Ensure controller is enabled
+                self.color_controllers[z].set_enabled(True)
+        else:
+            self.mode_vars[zone].set("Static")
+            if "all" in self.mode_vars:
+                self.mode_vars["all"].set("Static")
+                self.color_controllers["all"].set_enabled(True)
+
+
+        # Set device color
         if zone == "all":
             self.device_manager.set_color("all", r, g, b)
             # Update the UI of the individual controllers
             for z in ["scroll", "logo", "side"]:
-                if z in self.controllers:
-                    self.controllers[z].update_color((r, g, b), source="global")
+                if z in self.color_controllers:
+                    self.color_controllers[z].update_color((r, g, b), source="global")
         else:
             self.device_manager.set_color(zone, r, g, b)
 
